@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logic Master v5.0</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --ink: #0e0e12;
+    --ink-mid: #1a1a22;
+    --ink-soft: #252530;
+    --line: #2c2c3a;
+    --muted: #58586e;
+    --ghost: #8888a0;
+    --paper: #f2f0ec;
+    --cream: #faf8f4;
+    --amber: #e8a430;
+    --amber-dim: rgba(232,164,48,0.1);
+    --red: #e05252;
+    --red-dim: rgba(224,82,82,0.1);
+    --green: #3daa72;
+    --green-dim: rgba(61,170,114,0.1);
+    --blue: #5b8dee;
+    --blue-dim: rgba(91,141,238,0.1);
+    --r: 16px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--ink);
+    color: var(--paper);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px;
+    opacity: .13;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse 80% 55% at 50% -5%, rgba(232,164,48,.07) 0%, transparent 65%);
+  }
+  .app {
+    position: relative; z-index: 1;
+    max-width: 840px;
+    margin: 0 auto;
+    padding: 48px 24px 100px;
+  }
+  .screen { display: none; }
+  .screen.active { display: block; animation: rise .45s cubic-bezier(.22,1,.36,1); }
+  @keyframes rise {
+    from { opacity:0; transform:translateY(18px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  /* ── INTRO ── */
+  .wordmark {
+    font-family: 'DM Mono', monospace;
+    font-size: .68em; letter-spacing: .24em; color: var(--amber);
+    text-transform: uppercase; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .wordmark::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, rgba(232,164,48,.4), transparent);
+  }
+  .intro-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2.8em, 8vw, 4.4em);
+    line-height: 1.08; color: var(--cream); margin-bottom: 10px;
+  }
+  .intro-title em { font-style: italic; color: var(--amber); }
+  .intro-sub { font-size: .92em; color: var(--ghost); margin-bottom: 44px; font-weight: 300; line-height: 1.6; }
+  .info-card {
+    background: var(--ink-mid); border: 1px solid var(--line);
+    border-left: 3px solid var(--amber); border-radius: var(--r);
+    padding: 22px 26px; margin-bottom: 36px;
+    line-height: 1.85; font-size: .9em; color: var(--ghost);
+  }
+  .info-card strong { color: var(--paper); font-weight: 500; }
+  .bias-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .bias-pill {
+    font-family: 'DM Mono', monospace;
+    font-size: .68em; padding: 4px 12px;
+    border-radius: 100px; border: 1px solid; letter-spacing: .06em;
+  }
+  .pill-amber { border-color: rgba(232,164,48,.5); color: var(--amber); background: var(--amber-dim); }
+  .pill-red   { border-color: rgba(224,82,82,.5);  color: var(--red);   background: var(--red-dim); }
+  .pill-green { border-color: rgba(61,170,114,.5); color: var(--green); background: var(--green-dim); }
+  .pill-blue  { border-color: rgba(91,141,238,.5); color: var(--blue);  background: var(--blue-dim); }
+  /* ── BUTTONS ── */
+  .btn {
+    display: block; width: 100%; padding: 17px 28px;
+    border: none; border-radius: var(--r);
+    font-family: 'Noto Sans KR', sans-serif;
+    font-weight: 700; font-size: 1em; cursor: pointer;
+    transition: transform .12s, box-shadow .2s; letter-spacing: .02em;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-primary { background: var(--amber); color: var(--ink); }
+  .btn-primary:hover { box-shadow: 0 0 28px rgba(232,164,48,.3); }
+  .btn-ghost {
+    background: transparent; color: var(--ghost);
+    border: 1px solid var(--line); font-weight: 400; margin-top: 12px;
+  }
+  .btn-ghost:hover { border-color: var(--muted); color: var(--paper); }
+  /* ── DASHBOARD ── */
+  .dashboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 26px; }
+  .stat-card {
+    background: var(--ink-mid); border: 1px solid var(--line);
+    border-radius: 12px; padding: 13px 14px; text-align: center;
+  }
+  .stat-label {
+    font-family: 'DM Mono', monospace; font-size: .6em;
+    letter-spacing: .14em; color: var(--muted); text-transform: uppercase;
+    display: block; margin-bottom: 6px;
+  }
+  .stat-value { font-family: 'DM Mono', monospace; font-size: 1.38em; font-weight: 500; color: var(--paper); }
+  .stat-card.timer .stat-value { color: var(--red); }
+  .stat-card.correct .stat-value { color: var(--green); }
+  .stat-card.bias-card .stat-value { color: var(--amber); }
+  .progress-track { height: 3px; background: var(--line); border-radius: 10px; margin-bottom: 24px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--amber); border-radius: 10px; transition: width .4s cubic-bezier(.22,1,.36,1); }
+  /* ── QUESTION CARD ── */
+  .q-card { background: var(--ink-mid); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+  .q-header {
+    padding: 16px 22px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .type-badge {
+    font-family: 'DM Mono', monospace; font-size: .68em; letter-spacing: .1em;
+    padding: 5px 14px; border-radius: 100px;
+    background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(232,164,48,.25);
+  }
+  .q-number { font-family: 'DM Mono', monospace; font-size: .78em; color: var(--muted); }
+  .passage-wrap { padding: 26px 26px 0; }
+  .passage-text { font-size: 1.04em; line-height: 1.88; color: var(--cream); font-weight: 300; }
+  .trans-toggle {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+    font-family: 'DM Mono', monospace; font-size: .7em; color: var(--muted);
+    background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px;
+    cursor: pointer; transition: color .2s, border-color .2s;
+  }
+  .trans-toggle:hover { color: var(--ghost); border-color: var(--ghost); }
+  .translation {
+    display: none; margin-top: 12px; padding: 14px 18px;
+    background: var(--ink-soft); border-radius: 10px;
+    font-size: .87em; line-height: 1.72; color: var(--ghost);
+    border-left: 2px solid var(--amber);
+  }
+  .options-list { padding: 20px 22px 22px; display: grid; gap: 10px; }
+  .option-item {
+    display: flex; align-items: center; padding: 15px 18px;
+    border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer;
+    transition: border-color .18s, background .18s, transform .1s;
+    background: var(--ink-soft); gap: 14px;
+  }
+  .option-item:hover:not(.disabled) {
+    border-color: rgba(232,164,48,.5); background: rgba(232,164,48,.04); transform: translateX(3px);
+  }
+  .option-item.disabled { cursor: default; }
+  .option-item.correct { border-color: var(--green); background: var(--green-dim); }
+  .option-item.wrong   { border-color: var(--red);   background: var(--red-dim); }
+  .opt-num {
+    font-family: 'DM Mono', monospace; font-size: .8em; font-weight: 500;
+    width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%;
+    background: var(--line); display: flex; align-items: center; justify-content: center;
+    color: var(--ghost); transition: background .18s, color .18s;
+  }
+  .option-item.correct .opt-num { background: var(--green); color: #fff; }
+  .option-item.wrong   .opt-num { background: var(--red);   color: #fff; }
+  .opt-text { font-size: .93em; line-height: 1.55; color: var(--paper); }
+  .feedback-area {
+    display: none; margin: 0 22px 22px; padding: 18px 20px;
+    border-radius: 12px; font-size: .9em; line-height: 1.7;
+    background: var(--ink-soft); border: 1px solid var(--line);
+  }
+  .feedback-area.correct-fb { border-left: 3px solid var(--green); }
+  .feedback-area.wrong-fb   { border-left: 3px solid var(--red); }
+  .fb-tag {
+    font-family: 'DM Mono', monospace; font-size: .72em; letter-spacing: .08em;
+    padding: 2px 10px; border-radius: 100px; margin-right: 8px; font-weight: 500;
+  }
+  .fb-tag.ok  { background: var(--green-dim); color: var(--green); }
+  .fb-tag.err { background: var(--red-dim);   color: var(--red); }
+  .bias-tag {
+    font-family: 'DM Mono', monospace; display: inline-block;
+    font-size: .78em; color: var(--amber);
+    background: var(--amber-dim); border: 1px solid rgba(232,164,48,.3);
+    border-radius: 6px; padding: 1px 9px; margin-left: 4px;
+  }
+  .btn-next {
+    display: none; width: calc(100% - 44px); margin: 0 22px 22px;
+    padding: 15px; background: var(--amber); color: var(--ink);
+    border: none; border-radius: 12px;
+    font-family: 'Noto Sans KR', sans-serif; font-weight: 700; font-size: .95em;
+    cursor: pointer; transition: box-shadow .2s, transform .1s;
+  }
+  .btn-next:hover { box-shadow: 0 0 22px rgba(232,164,48,.3); }
+  .btn-next:active { transform: scale(.98); }
+  /* ── REPORT ── */
+  .report-hero { text-align: center; padding-bottom: 36px; border-bottom: 1px solid var(--line); margin-bottom: 32px; }
+  .score-big { font-family: 'DM Serif Display', serif; font-size: clamp(3.5em, 12vw, 6em); color: var(--amber); line-height: 1; }
+  .score-label { font-family: 'DM Mono', monospace; font-size: .75em; color: var(--muted); letter-spacing: .15em; text-transform: uppercase; margin-top: 8px; }
+  .report-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; margin-bottom: 32px; }
+  .chart-box {
+    background: var(--ink-mid); border: 1px solid var(--line);
+    border-radius: 18px; padding: 24px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .analysis-box { background: var(--ink-mid); border: 1px solid var(--line); border-radius: 18px; padding: 26px; }
+  .analysis-box h3 { font-family: 'DM Serif Display', serif; font-size: 1.3em; color: var(--cream); margin-bottom: 16px; }
+  .analysis-box p { font-size: .88em; line-height: 1.8; color: var(--ghost); margin-bottom: 12px; }
+  .analysis-box strong { color: var(--paper); font-weight: 500; }
+  .bias-breakdown { margin-top: 18px; display: grid; gap: 8px; }
+  .bias-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .bias-name { font-family: 'DM Mono', monospace; font-size: .72em; color: var(--ghost); letter-spacing: .04em; flex-shrink: 0; min-width: 80px; }
+  .bias-bar-track { flex: 1; height: 5px; background: var(--line); border-radius: 10px; overflow: hidden; }
+  .bias-bar-fill { height: 100%; background: var(--amber); border-radius: 10px; transition: width .6s cubic-bezier(.22,1,.36,1); }
+  .bias-count { font-family: 'DM Mono', monospace; font-size: .72em; color: var(--muted); width: 18px; text-align: right; flex-shrink: 0; }
+  /* ── RETRY MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(10,10,16,.85); backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from{opacity:0}to{opacity:1} }
+  .modal-box {
+    background: var(--ink-mid); border: 1px solid var(--line);
+    border-radius: 20px; padding: 36px 32px; width: 100%;
+    max-width: 400px; margin: 24px;
+    animation: rise .3s cubic-bezier(.22,1,.36,1);
+  }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 1.6em; color: var(--cream); margin-bottom: 8px; }
+  .modal-sub { font-size: .88em; color: var(--ghost); margin-bottom: 24px; line-height: 1.6; }
+  .modal-options { display: grid; gap: 10px; }
+  .modal-opt {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border: 1.5px solid var(--line);
+    border-radius: 12px; cursor: pointer; background: var(--ink-soft);
+    transition: border-color .18s, background .18s;
+  }
+  .modal-opt:hover { border-color: rgba(232,164,48,.5); background: rgba(232,164,48,.04); }
+  .modal-opt-icon {
+    font-size: 1.3em; width: 36px; height: 36px;
+    background: var(--line); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .opt-title { font-size: .92em; font-weight: 600; color: var(--paper); }
+  .opt-desc { font-size: .78em; color: var(--muted); margin-top: 2px; }
+  .modal-cancel {
+    text-align: center; margin-top: 16px; font-size: .82em;
+    color: var(--muted); cursor: pointer; padding: 6px; transition: color .18s;
+  }
+  .modal-cancel:hover { color: var(--ghost); }
+  @media (max-width: 600px) {
+    .dashboard { grid-template-columns: repeat(2, 1fr); }
+    .report-grid { grid-template-columns: 1fr; }
+    .app { padding: 28px 16px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- INTRO -->
+  <div id="intro-screen" class="screen active">
+    <div class="wordmark">Protocol 2.1 · Logic Master v5.0</div>
+    <h1 class="intro-title">Multi-Layered<br><em>Logic Analyzer</em></h1>
+    <p class="intro-sub">주제·주장·요지·제목 5지 선다형 정밀 진단 — 20문항 · 30분</p>
+    <div class="info-card">
+      <strong>다층적 편향 진단 (Multi-Layered Diagnosis)</strong><br>
+      각 오답 선택지는 단순한 '오답'이 아니라, 당신의 특정 사고 오류를 유도하도록 설계되었습니다.
+      중학생부터 고등학생까지 자신의 논리적 약점을 파악하는 최적의 도구입니다.
+      <div class="bias-pills">
+        <span class="bias-pill pill-amber">확증 편향</span>
+        <span class="bias-pill pill-red">이분법적 사고</span>
+        <span class="bias-pill pill-green">인과관계 역전</span>
+        <span class="bias-pill pill-blue">범주 확대</span>
+        <span class="bias-pill pill-amber">껍데기 함정</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="startQuiz('new')">진단 시작 →</button>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="quiz-screen" class="screen">
+    <div class="dashboard">
+      <div class="stat-card"><span class="stat-label">Progress</span><span id="stat-prog" class="stat-value">0/20</span></div>
+      <div class="stat-card timer"><span class="stat-label">Time</span><span id="stat-time" class="stat-value">30:00</span></div>
+      <div class="stat-card correct"><span class="stat-label">Correct</span><span id="stat-score" class="stat-value">0</span></div>
+      <div class="stat-card bias-card"><span class="stat-label">Bias</span><span id="stat-bias" class="stat-value">0</span></div>
+    </div>
+    <div class="progress-track"><div id="progress-fill" class="progress-fill" style="width:0%"></div></div>
+    <div id="quiz-content"></div>
+  </div>
+
+  <!-- REPORT -->
+  <div id="report-screen" class="screen">
+    <div class="wordmark">진단 완료 · 결과 리포트</div>
+    <div class="report-hero">
+      <div id="report-score" class="score-big">—</div>
+      <div class="score-label">/ 20 correct</div>
+      <div id="report-grade" style="margin-top:14px;font-size:.9em;color:var(--ghost);"></div>
+    </div>
+    <div class="report-grid">
+      <div class="chart-box"><canvas id="biasChart" width="280" height="280"></canvas></div>
+      <div class="analysis-box">
+        <h3>사고 편향 분석</h3>
+        <div id="analysis-text"></div>
+        <div class="bias-breakdown" id="bias-breakdown"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="openRetryModal()">다시 풀기</button>
+    <button class="btn btn-ghost" onclick="location.reload()">처음으로 돌아가기</button>
+  </div>
+
+</div>
+
+<!-- RETRY MODAL -->
+<div id="retry-modal" class="modal-overlay" onclick="closeRetryModalBg(event)">
+  <div class="modal-box">
+    <div class="modal-title">다시 풀기</div>
+    <p class="modal-sub">어떤 방식으로 다시 시작할까요?</p>
+    <div class="modal-options">
+      <div class="modal-opt" onclick="startQuiz('new')">
+        <div class="modal-opt-icon">🔀</div>
+        <div>
+          <div class="opt-title">새 문항 세트</div>
+          <div class="opt-desc">문제를 새로 섞어서 다시 시작</div>
+        </div>
+      </div>
+      <div class="modal-opt" onclick="startQuiz('wrong')">
+        <div class="modal-opt-icon">🎯</div>
+        <div>
+          <div class="opt-title">틀린 문항만 다시 풀기</div>
+          <div class="opt-desc" id="wrong-count-label">오답 문항만 다시 도전</div>
+        </div>
+      </div>
+      <div class="modal-opt" onclick="startQuiz('same')">
+        <div class="modal-opt-icon">↩️</div>
+        <div>
+          <div class="opt-title">같은 순서로 다시 풀기</div>
+          <div class="opt-desc">동일 문항 세트를 처음부터</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-cancel" onclick="closeRetryModal()">취소</div>
+  </div>
+</div>
+
+<script>
+const DB = [
+  { type:"요지", id:0, passage:"While digital devices offer immense convenience for learning, research suggests that over-reliance on them may weaken students' ability to engage in sustained, deep concentration. Experts advocate for a balanced integration of technology in classrooms.", trans:"디지털 기기는 편리하지만 과도한 의존은 집중력을 약화시킵니다. 전문가들은 교실에서의 균형 잡힌 기술 통합을 지지합니다.", options:[{text:"디지털 기기는 학생들의 학습 효율을 무조건적으로 향상시킨다.",trap:"확증 편향"},{text:"학교 교육에서 모든 디지털 기기 사용을 즉각 중단해야 한다.",trap:"이분법적 사고"},{text:"디지털 기기 사용이 학생들의 인지 능력 저하의 유일한 원인이다.",trap:"인과관계 역전"},{text:"교육 현장에서 기술 사용에 대한 균형 잡힌 접근이 필요하다.",correct:true},{text:"첨단 기기는 모든 교실 환경에서 교사를 완전히 대체할 것이다.",trap:"범주 확대"}]},
+  { type:"주제", id:1, passage:"Innovation is often seen as a result of genius-level talent. However, history shows that inclusive organizational cultures contribute far more to consistent creative output than individual brilliance.", trans:"혁신은 천재의 결과로 보이지만, 실제로는 개인의 뛰어남보다 포용적 조직 문화가 창의적 결과에 더 기여합니다.", options:[{text:"창의적 결과물을 내기 위한 개인의 천재적 재능의 중요성",trap:"확증 편향"},{text:"혁신을 이끄는 동력으로서의 포용적인 조직 문화",correct:true},{text:"역사적 사례를 통해 본 개인 역량과 조직 문화의 대립",trap:"이분법적 사고"},{text:"모든 조직에서 혁신이 실패하게 되는 근본적인 이유들",trap:"범주 확대"},{text:"문화적 포용성이 개인의 천재성을 말살시키는 과정",trap:"인과관계 역전"}]},
+  { type:"주장", id:2, passage:"Many students believe that reading faster leads to better comprehension. Yet studies consistently show that deliberate slow reading, with active annotation, produces significantly deeper understanding of complex texts.", trans:"많은 학생들이 빠른 독서가 이해력을 높인다고 믿지만, 연구에 따르면 메모를 동반한 의도적 느린 읽기가 훨씬 깊은 이해를 만들어냅니다.", options:[{text:"독서 속도가 빠를수록 더 많은 정보를 처리할 수 있다.",trap:"확증 편향"},{text:"학생들은 속독 훈련 대신 천천히 주석을 달며 읽는 습관을 길러야 한다.",correct:true},{text:"복잡한 텍스트는 반드시 전문가의 해설과 함께 읽어야 한다.",trap:"범주 확대"},{text:"주석 달기 활동은 오히려 독해 흐름을 방해한다.",trap:"인과관계 역전"},{text:"모든 독서 방법은 동일한 수준의 이해도를 제공한다.",trap:"이분법적 사고"}]},
+  { type:"제목", id:3, passage:"Urban farms are transforming city rooftops and vacant lots into productive green spaces. Beyond food production, they reduce urban heat, improve air quality, and strengthen community bonds — offering a multifaceted solution to modern urban challenges.", trans:"도시 농장은 옥상과 빈 공간을 녹지로 변환합니다. 식량 생산 외에도 도시 열섬 완화, 공기 질 개선, 공동체 결속 강화 등 다면적 해결책을 제공합니다.", options:[{text:"도시 식량 부족 해결을 위한 수직 농업의 경제적 가능성",trap:"범주 확대"},{text:"도시 농장 : 식량 생산을 넘어선 도시 문제의 다면적 해결사",correct:true},{text:"녹색 공간이 도시 열섬 현상을 완전히 사라지게 만드는 법",trap:"인과관계 역전"},{text:"공동체 결속이 도시 농장 성공의 유일한 열쇠인 이유",trap:"확증 편향"},{text:"모든 도시가 농업 중심 도시로 전환해야 하는 당위성",trap:"이분법적 사고"}]},
+  { type:"요지", id:4, passage:"Children who grow up bilingual consistently show enhanced executive function — particularly in tasks requiring attention control and cognitive flexibility. This suggests that managing two languages exercises the brain's regulatory systems.", trans:"이중 언어로 성장한 아이들은 주의 통제와 인지 유연성에서 향상된 실행 기능을 보입니다.", options:[{text:"이중 언어 사용은 학업 성적과 직접적인 상관관계가 없다.",trap:"이분법적 사고"},{text:"이중 언어 환경이 아이들의 뇌 실행 기능 향상에 기여한다.",correct:true},{text:"외국어 학습은 반드시 어린 시절에 시작해야만 효과가 있다.",trap:"범주 확대"},{text:"인지 유연성이 높은 아이들이 자연스럽게 이중 언어를 배운다.",trap:"인과관계 역전"},{text:"이중 언어 사용자는 단일 언어 사용자보다 모든 면에서 우월하다.",trap:"확증 편향"}]},
+  { type:"주제", id:5, passage:"Social media platforms are frequently blamed for rising rates of adolescent anxiety. However, researchers caution that correlation does not imply causation — pre-existing mental health vulnerabilities may drive both increased social media use and anxiety.", trans:"소셜 미디어가 청소년 불안 증가의 원인으로 지목되지만, 기존의 정신 건강 취약성이 소셜 미디어 과다 사용과 불안 모두를 유발할 수 있습니다.", options:[{text:"소셜 미디어 사용 제한이 청소년 불안을 직접 해소하는 방법",trap:"인과관계 역전"},{text:"소셜 미디어와 청소년 불안 간 상관관계와 인과관계 구분의 필요성",correct:true},{text:"모든 청소년이 소셜 미디어 사용으로 심각한 불안을 겪는 이유",trap:"확증 편향"},{text:"정신 건강 취약성이 소셜 미디어보다 더 심각한 사회 문제인 이유",trap:"이분법적 사고"},{text:"소셜 미디어 플랫폼이 청소년 정신 건강 전반에 미치는 영향",trap:"범주 확대"}]},
+  { type:"주장", id:6, passage:"Homework overload is a growing concern in many school systems. When students spend excessive hours on assignments, their sleep, creativity, and intrinsic motivation all decline — ultimately undermining the very learning goals homework is meant to support.", trans:"과도한 숙제는 수면, 창의성, 내재적 동기를 저하시켜 학습 목표 자체를 훼손합니다.", options:[{text:"학교는 숙제를 완전히 폐지하여 학생들의 자유 시간을 보장해야 한다.",trap:"이분법적 사고"},{text:"숙제의 양보다 질적인 개선이 학업 성취도 향상의 핵심이다.",trap:"껍데기 함정"},{text:"학교는 학생의 전반적 웰빙을 고려해 숙제량을 적정 수준으로 조정해야 한다.",correct:true},{text:"숙제를 많이 할수록 학생들의 학업 성적이 비례하여 향상된다.",trap:"확증 편향"},{text:"수면 부족이 숙제 과부하보다 청소년 건강에 더 위험하다.",trap:"범주 확대"}]},
+  { type:"제목", id:7, passage:"As automation replaces routine jobs, the workforce of the future will prize adaptability and creativity above all. Educators must shift focus from rote memorization toward critical thinking and problem-solving skills to prepare students for an unpredictable labor market.", trans:"자동화가 일상적 직업을 대체함에 따라, 교육자들은 암기 위주에서 비판적 사고와 문제 해결 능력 개발로 초점을 전환해야 합니다.", options:[{text:"자동화가 모든 일자리를 없애는 미래, 교육의 종말",trap:"이분법적 사고"},{text:"자동화 시대에 대응하는 교육 패러다임의 전환 : 암기에서 사고력으로",correct:true},{text:"미래 직업 시장에서 창의성이 성공을 보장하는 이유",trap:"확증 편향"},{text:"비판적 사고 교육이 자동화 실업의 유일한 해결책인 이유",trap:"인과관계 역전"},{text:"STEM 교육이 미래 모든 직업 문제를 해결하는 만능 열쇠",trap:"범주 확대"}]},
+  { type:"요지", id:8, passage:"Contrary to popular belief, multitasking does not increase productivity. Cognitive science shows that the brain switches rapidly between tasks rather than processing them simultaneously, resulting in errors and slower overall performance.", trans:"멀티태스킹은 생산성을 높이지 않습니다. 뇌는 작업을 동시에 처리하는 것이 아니라 빠르게 전환하며, 이는 오류와 성능 저하를 초래합니다.", options:[{text:"멀티태스킹은 훈련을 통해 충분히 습득 가능한 고급 기술이다.",trap:"확증 편향"},{text:"멀티태스킹은 실제로 생산성을 높이는 것이 아니라 오히려 저해한다.",correct:true},{text:"단일 작업 집중은 창의적 사고를 방해하므로 지양해야 한다.",trap:"인과관계 역전"},{text:"모든 업무 환경에서 멀티태스킹 능력은 필수 역량이다.",trap:"범주 확대"},{text:"생산성이 높은 사람들은 단순히 더 빠른 두뇌를 타고난다.",trap:"이분법적 사고"}]},
+  { type:"주제", id:9, passage:"Rising global temperatures are reshaping migration patterns. As coastal areas flood and agricultural zones dry up, millions of people are displaced, creating new pressures on urban infrastructure and raising complex questions about climate refugees' legal status.", trans:"기후 변화로 수백만 명이 이주하고 있으며, 이는 도시 인프라와 기후 난민의 법적 지위에 복합적 문제를 제기합니다.", options:[{text:"기후 난민이 선진국 도시에 미치는 경제적 부담과 해결책",trap:"범주 확대"},{text:"기후 변화가 인구 이동과 사회·법적 문제를 복합적으로 야기함",correct:true},{text:"해수면 상승이 모든 국가의 즉각적인 이주 정책 수립을 강제함",trap:"이분법적 사고"},{text:"농업 기술 혁신이 기후 이주 문제의 근본 원인을 해소하는 방법",trap:"인과관계 역전"},{text:"모든 기후 재난이 인간의 무분별한 탄소 배출만으로 발생함",trap:"확증 편향"}]},
+  { type:"주장", id:10, passage:"Public libraries face declining foot traffic as digital resources expand. Yet their role as equalizers — providing free internet, quiet study spaces, and community programs — remains irreplaceable for those without home access to technology.", trans:"공공 도서관은 방문객이 줄고 있지만, 기술 접근성이 없는 이들에게 무료 인터넷과 학습 공간을 제공하는 평등 장치로서의 역할은 대체 불가능합니다.", options:[{text:"공공 도서관은 디지털 전환 시대에 맞게 완전히 온라인으로 전환해야 한다.",trap:"이분법적 사고"},{text:"도서관 방문객 감소는 책의 중요성이 줄어드는 현상을 반영한다.",trap:"인과관계 역전"},{text:"공공 도서관은 디지털 격차 해소를 위한 핵심 공공재로 보존·강화되어야 한다.",correct:true},{text:"모든 학생이 집에서 인터넷에 접근할 수 있도록 정부가 지원해야 한다.",trap:"범주 확대"},{text:"디지털 자원이 확대될수록 공공 도서관의 가치는 자연스럽게 감소한다.",trap:"확증 편향"}]},
+  { type:"제목", id:11, passage:"Music education in schools is often the first program cut when budgets tighten. Yet research consistently links music training to improved mathematical reasoning, emotional regulation, and even social cohesion.", trans:"예산 삭감 시 음악 교육이 가장 먼저 제외되지만, 음악 훈련은 수학적 추론, 정서 조절, 사회적 결속을 향상시킵니다.", options:[{text:"예산 위기 속 음악 교육 : 가장 먼저 잘려야 할 선택 과목",trap:"확증 편향"},{text:"음악 교육의 숨겨진 힘 : 교실을 넘어 사회 전반에 미치는 복합적 효과",correct:true},{text:"수학 성적 향상을 위해 모든 학교에 음악 교육을 의무화해야 하는 이유",trap:"인과관계 역전"},{text:"정서 교육이 음악보다 사회 결속에 더 효과적인 방법인 이유",trap:"이분법적 사고"},{text:"학교 예산 삭감이 교육 전반의 질을 떨어뜨리는 악순환의 고리",trap:"범주 확대"}]},
+  { type:"요지", id:12, passage:"Failure is often viewed as something to be avoided at all costs. But in learning environments, controlled failure — when followed by reflection and guided feedback — accelerates skill acquisition and builds resilient, adaptive learners.", trans:"통제된 실패는 성찰과 피드백이 뒤따를 때 기술 습득을 가속화하고 회복력 있는 학습자를 만들어냅니다.", options:[{text:"실패 경험은 학습자에게 심리적 트라우마만 남기므로 반드시 피해야 한다.",trap:"이분법적 사고"},{text:"학습 과정에서 적절한 실패와 피드백은 성장을 촉진하는 핵심 요소이다.",correct:true},{text:"피드백 없이도 실패 자체만으로 충분한 학습 효과가 발생한다.",trap:"인과관계 역전"},{text:"실패를 반복하는 학습자는 선천적인 학습 능력이 부족한 것이다.",trap:"확증 편향"},{text:"모든 교육기관은 즉각적인 실패 허용 커리큘럼으로 전환해야 한다.",trap:"범주 확대"}]},
+  { type:"주제", id:13, passage:"Volunteer programs abroad often intend to help local communities, but critics argue that unskilled volunteers may do more harm than good — displacing local workers, creating dependency, and imposing outside cultural values on host communities.", trans:"비숙련 해외 봉사자가 지역 일자리를 빼앗고 의존성을 만들며 외래 문화 가치를 강요할 수 있다는 비판이 있습니다.", options:[{text:"해외 봉사가 봉사자 개인의 성장에 미치는 심리적 긍정 효과",trap:"확증 편향"},{text:"해외 봉사 프로그램의 의도치 않은 부정적 결과와 그 복잡성",correct:true},{text:"비숙련 봉사자의 참여를 전면 금지해야 하는 국제법적 근거",trap:"이분법적 사고"},{text:"문화 제국주의가 모든 해외 원조 프로그램의 근본 동기임을 밝히다",trap:"인과관계 역전"},{text:"봉사 활동이 세계 모든 빈곤 문제를 해결할 수 있는 만능 수단",trap:"범주 확대"}]},
+  { type:"주장", id:14, passage:"Sleep deprivation among teenagers is reaching epidemic levels, largely driven by early school start times that conflict with adolescent biology. Schools should delay start times to align with teenagers' natural sleep cycles.", trans:"청소년의 수면 부족이 심각해지고 있으며, 학교는 등교 시간을 늦춰 수면 주기에 맞춰야 합니다.", options:[{text:"청소년의 수면 문제는 스마트폰 사용 제한만으로 완전히 해결된다.",trap:"인과관계 역전"},{text:"학교는 청소년의 생체 리듬에 맞춰 등교 시간을 늦춰야 한다.",correct:true},{text:"모든 학생이 9시간 수면을 보장받도록 법으로 규정해야 한다.",trap:"범주 확대"},{text:"수면 부족 학생은 자기 관리 능력이 부족한 것이므로 본인 책임이다.",trap:"확증 편향"},{text:"이른 기상 습관은 오히려 학생들의 자기 절제력을 키워준다.",trap:"이분법적 사고"}]},
+  { type:"제목", id:15, passage:"Personalized medicine — tailoring treatments to an individual's genetic profile — is revolutionizing healthcare. Rather than a one-size-fits-all approach, physicians can now predict drug responses, minimize side effects, and design targeted therapies with unprecedented precision.", trans:"맞춤형 의학은 유전자 프로필에 맞는 치료법으로 의료를 혁신하고 있습니다.", options:[{text:"유전자 분석 기술의 발전이 가져온 의료 비용 급증과 대응 방안",trap:"범주 확대"},{text:"맞춤형 유전자 의학 : 일률적 치료를 넘어선 의료 혁명의 시작",correct:true},{text:"모든 환자가 동일한 치료를 받아야 하는 의료 평등의 원칙",trap:"이분법적 사고"},{text:"유전자 분석이 자동으로 완벽한 치료법을 생성해내는 미래 의학",trap:"확증 편향"},{text:"개인 정보 유출이 맞춤형 의학의 발전을 가로막는 유일한 장벽",trap:"인과관계 역전"}]},
+  { type:"요지", id:16, passage:"Urban green spaces are often dismissed as luxuries in densely populated cities. Yet evidence shows they reduce stress, encourage physical activity, and even lower crime rates — making them not an optional extra, but a public health necessity.", trans:"도시 녹지는 사치로 여겨지지만, 스트레스 감소·신체 활동 촉진·범죄율 감소 효과가 입증되어 공중 보건 필수 요소입니다.", options:[{text:"도시 녹지 조성은 예산 낭비이므로 주거 공간 확충에 우선해야 한다.",trap:"이분법적 사고"},{text:"도시 녹지는 사치가 아닌 공중 보건을 위한 필수적인 인프라이다.",correct:true},{text:"범죄율 감소는 도시 녹지보다 경찰 인력 증가에 의해 결정된다.",trap:"인과관계 역전"},{text:"녹지가 풍부한 도시는 모든 시민이 건강하고 행복한 삶을 누린다.",trap:"확증 편향"},{text:"모든 도시 정책은 녹지 확대를 최우선 과제로 삼아야만 한다.",trap:"범주 확대"}]},
+  { type:"주제", id:17, passage:"The proliferation of misinformation on social media poses a direct threat to democratic processes. When citizens cannot distinguish fact from fabrication, they are unable to make informed electoral choices — eroding the foundation of representative government.", trans:"소셜 미디어의 허위 정보 확산은 민주주의를 위협합니다. 시민이 사실과 조작을 구별하지 못하면 대의 민주주의의 근간이 흔들립니다.", options:[{text:"소셜 미디어 기업이 의도적으로 허위 정보를 유포하는 음모의 실체",trap:"확증 편향"},{text:"허위 정보 확산이 민주적 의사결정 능력과 제도 기반을 훼손하는 방식",correct:true},{text:"소셜 미디어 플랫폼을 모두 폐쇄하는 것만이 민주주의를 구하는 길",trap:"이분법적 사고"},{text:"정부 규제가 허위 정보보다 언론 자유를 더 심각하게 침해하는 이유",trap:"인과관계 역전"},{text:"디지털 리터러시 교육이 모든 사회 문제를 해결할 수 있는 만능책",trap:"범주 확대"}]},
+  { type:"주장", id:18, passage:"Fast fashion's rapid production cycles and low prices come at a steep environmental cost — generating massive textile waste and carbon emissions. Consumers must shift toward sustainable purchasing habits, and policymakers should introduce stricter environmental standards.", trans:"패스트 패션의 빠른 생산과 저가는 막대한 환경적 대가를 치릅니다. 소비자와 정책 입안자 모두의 변화가 필요합니다.", options:[{text:"패스트 패션 기업은 이윤 추구보다 환경 보호를 최우선으로 삼아야 한다.",trap:"범주 확대"},{text:"소비자의 지속 가능한 소비와 강화된 정책 규제를 통해 패스트 패션 문제를 해결해야 한다.",correct:true},{text:"환경 파괴는 패스트 패션이 아닌 대기업의 제조업에서만 비롯된다.",trap:"인과관계 역전"},{text:"친환경 소재만 사용하면 패스트 패션 문제가 자동으로 해결된다.",trap:"확증 편향"},{text:"패스트 패션을 즐기는 소비자는 도덕적으로 비난받아 마땅하다.",trap:"이분법적 사고"}]},
+  { type:"제목", id:19, passage:"Curiosity, once thought to be a fixed personality trait, is now understood by psychologists to be a malleable skill that can be cultivated through deliberate practice. Classrooms that reward questioning over rote answers — and that normalize uncertainty — produce more intellectually adventurous thinkers.", trans:"호기심은 고정된 특성이 아니라 훈련으로 개발 가능한 기술입니다. 질문을 장려하고 불확실성을 정상화하는 교실이 더 지적으로 모험적인 사고자를 만들어냅니다.", options:[{text:"타고난 호기심이 천재를 만드는 이유와 유전학적 근거",trap:"확증 편향"},{text:"호기심 계발 가능성 : 질문하는 교실이 창의적 사고자를 기른다",correct:true},{text:"불확실성을 허용하지 않는 교육 환경이 학업 성취도를 높이는 방법",trap:"이분법적 사고"},{text:"심리학 연구가 모든 성격 특성을 학습 가능한 기술로 전환하는 방식",trap:"범주 확대"},{text:"정답 중심 교육을 폐지하는 것이 모든 학습 문제를 해결하는 방법",trap:"인과관계 역전"}]}
+];
+
+let quizSet = [], currentIdx = 0, score = 0, timerInterval = null, biasChartInstance = null;
+let biasStats = {"확증 편향":0,"범주 확대":0,"인과관계 역전":0,"이분법적 사고":0,"껍데기 함정":0};
+
+function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function gradeLabel(s) {
+  if (s >= 18) return "🏆 탁월한 논리력 — 편향에 거의 흔들리지 않습니다";
+  if (s >= 14) return "✅ 우수한 분석력 — 몇 가지 편향 패턴을 더 다듬으세요";
+  if (s >= 10) return "📊 보통 수준 — Protocol 2.1 훈련으로 개선 가능합니다";
+  return "🔄 집중 훈련 필요 — 지문 시그널 명사 분리 연습을 추천합니다";
+}
+
+window.startQuiz = function(mode) {
+  closeRetryModal();
+  currentIdx = 0; score = 0;
+  biasStats = {"확증 편향":0,"범주 확대":0,"인과관계 역전":0,"이분법적 사고":0,"껍데기 함정":0};
+
+  if (mode === 'wrong') {
+    const wrongOnes = quizSet.filter(q => q._wrong);
+    quizSet = wrongOnes.length > 0 ? shuffle(wrongOnes).map(q=>({...q,_wrong:false})) : shuffle(DB).map(q=>({...q,_wrong:false}));
+  } else if (mode === 'same') {
+    quizSet = quizSet.map(q => ({...q, _wrong:false}));
+  } else {
+    quizSet = shuffle(DB).map(q => ({...q, _wrong:false}));
+  }
+  if (quizSet.length === 0) quizSet = shuffle(DB).map(q=>({...q,_wrong:false}));
+  quizSet = quizSet.slice(0, 20);
+
+  document.getElementById('stat-score').innerText = '0';
+  document.getElementById('stat-bias').innerText = '0';
+  document.getElementById('stat-time').innerText = '30:00';
+  document.getElementById('progress-fill').style.width = '0%';
+  show('quiz-screen');
+  startTimer();
+  renderQuestion();
+};
+
+function startTimer() {
+  clearInterval(timerInterval);
+  let time = 30 * 60;
+  timerInterval = setInterval(() => {
+    time--;
+    const m = Math.floor(time/60), s = time%60;
+    document.getElementById('stat-time').innerText = `${m}:${s<10?'0'+s:s}`;
+    if (time <= 0) { clearInterval(timerInterval); showReport(); }
+  }, 1000);
+}
+
+function renderQuestion() {
+  const q = quizSet[currentIdx];
+  const total = quizSet.length;
+  document.getElementById('stat-prog').innerText = `${currentIdx+1}/${total}`;
+  document.getElementById('progress-fill').style.width = `${(currentIdx/total)*100}%`;
+
+  document.getElementById('quiz-content').innerHTML = `
+    <div class="q-card">
+      <div class="q-header">
+        <span class="type-badge">유형 : ${q.type}</span>
+        <span class="q-number">Q${currentIdx+1} / ${total}</span>
+      </div>
+      <div class="passage-wrap">
+        <p class="passage-text">${q.passage}</p>
+        <button class="trans-toggle" onclick="toggleTrans()">▾ 해석 보기</button>
+        <div id="trans-box" class="translation">${q.trans}</div>
+      </div>
+      <div class="options-list">
+        ${q.options.map((opt,i) => `
+          <div class="option-item" id="opt-${i}" onclick="selectOption(${i})">
+            <div class="opt-num">${i+1}</div>
+            <div class="opt-text">${opt.text}</div>
+          </div>`).join('')}
+      </div>
+      <div id="feedback" class="feedback-area"></div>
+      <button id="btn-next" class="btn-next" onclick="nextQuestion()">다음 문항 →</button>
+    </div>`;
+}
+
+window.toggleTrans = function() {
+  const b = document.getElementById('trans-box');
+  b.style.display = b.style.display === 'block' ? 'none' : 'block';
+};
+
+window.selectOption = function(idx) {
+  const q = quizSet[currentIdx];
+  const opt = q.options[idx];
+  const items = document.querySelectorAll('.option-item');
+  const feedback = document.getElementById('feedback');
+  const btnNext = document.getElementById('btn-next');
+
+  items.forEach(item => { item.classList.add('disabled'); item.onclick = null; });
+  feedback.style.display = 'block';
+  btnNext.style.display = 'block';
+
+  if (opt.correct) {
+    score++;
+    document.getElementById('stat-score').innerText = score;
+    items[idx].classList.add('correct');
+    feedback.className = 'feedback-area correct-fb';
+    feedback.innerHTML = `<span class="fb-tag ok">CORRECT</span> 지문의 핵심 논리를 정확히 파악했습니다. 출제자의 의도를 꿰뚫었습니다.`;
+  } else {
+    quizSet[currentIdx]._wrong = true;
+    biasStats[opt.trap]++;
+    document.getElementById('stat-bias').innerText = Object.values(biasStats).reduce((a,b)=>a+b,0);
+    items[idx].classList.add('wrong');
+    q.options.forEach((o,i) => { if (o.correct) items[i].classList.add('correct'); });
+    feedback.className = 'feedback-area wrong-fb';
+    feedback.innerHTML = `<span class="fb-tag err">WRONG</span> 발견된 편향 : <span class="bias-tag">${opt.trap}</span><br><span style="font-size:.85em;color:var(--ghost);display:block;margin-top:8px">지문의 근거보다 주관적 판단이나 논리적 비약에 치우쳤습니다. 시그널 명사와 인과 관계를 기계적으로 분리하는 연습이 필요합니다.</span>`;
+  }
+};
+
+window.nextQuestion = function() {
+  currentIdx++;
+  if (currentIdx < quizSet.length) renderQuestion();
+  else showReport();
+};
+
+function showReport() {
+  clearInterval(timerInterval);
+  show('report-screen');
+  document.getElementById('report-score').innerText = score;
+  document.getElementById('report-grade').innerText = gradeLabel(score);
+
+  const wrongCount = quizSet.filter(q=>q._wrong).length;
+  document.getElementById('wrong-count-label').innerText = wrongCount > 0 ? `틀린 ${wrongCount}문항만 다시 도전` : '오답이 없습니다 (새 세트로 시작)';
+
+  if (biasChartInstance) biasChartInstance.destroy();
+  const ctx = document.getElementById('biasChart').getContext('2d');
+  biasChartInstance = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: Object.keys(biasStats),
+      datasets: [{
+        label: '편향 지수', data: Object.values(biasStats),
+        backgroundColor: 'rgba(232,164,48,0.1)', borderColor: 'rgba(232,164,48,0.75)',
+        pointBackgroundColor: 'rgba(232,164,48,1)', pointBorderColor: 'transparent', borderWidth: 1.5
+      }]
+    },
+    options: {
+      scales: { r: { beginAtZero:true, max:5, grid:{color:'rgba(255,255,255,0.05)'}, angleLines:{color:'rgba(255,255,255,0.05)'}, ticks:{display:false}, pointLabels:{color:'#8888a0',font:{size:11,family:"'DM Mono', monospace"}} } },
+      plugins: { legend:{display:false} }
+    }
+  });
+
+  const topBias = Object.keys(biasStats).reduce((a,b) => biasStats[a]>biasStats[b]?a:b);
+  const totalBias = Object.values(biasStats).reduce((a,b)=>a+b,0);
+  document.getElementById('analysis-text').innerHTML = totalBias === 0
+    ? `<p>모든 편향 함정을 완벽히 피했습니다. <strong>탁월한 논리적 사고력</strong>입니다.</p>`
+    : `<p>총 <strong>${quizSet.length}문항</strong> 중 <strong>${score}문항 정답</strong>.</p><p>가장 자주 빠진 편향은 <strong>${topBias}</strong>(${biasStats[topBias]}회)입니다. 지문 속 시그널 명사와 인과 관계를 기계적으로 분리하는 연습을 추천합니다.</p>`;
+
+  const maxVal = Math.max(...Object.values(biasStats), 1);
+  document.getElementById('bias-breakdown').innerHTML = Object.entries(biasStats).map(([name,val]) => `
+    <div class="bias-row">
+      <span class="bias-name">${name}</span>
+      <div class="bias-bar-track"><div class="bias-bar-fill" style="width:${(val/maxVal)*100}%"></div></div>
+      <span class="bias-count">${val}</span>
+    </div>`).join('');
+}
+
+window.openRetryModal = function() {
+  const wrongCount = quizSet.filter(q=>q._wrong).length;
+  document.getElementById('wrong-count-label').innerText = wrongCount > 0 ? `틀린 ${wrongCount}문항만 다시 도전` : '오답이 없습니다 (새 세트로 시작)';
+  document.getElementById('retry-modal').classList.add('open');
+};
+window.closeRetryModal = function() { document.getElementById('retry-modal').classList.remove('open'); };
+window.closeRetryModalBg = function(e) { if (e.target === document.getElementById('retry-modal')) closeRetryModal(); };
+</script>
+</body>
+</html>
