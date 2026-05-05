@@ -178,14 +178,14 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .sol-card{background:var(--ink-mid);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
 .sol-card.sol-correct{border-left:3px solid var(--green);}
 .sol-card.sol-wrong{border-left:3px solid var(--red);}
-.sol-header{padding:14px 18px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s;}
+.sol-header{padding:14px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s;flex-wrap:nowrap;}
 .sol-header:hover{background:var(--ink-soft);}
 .sol-qnum{font-family:'DM Mono',monospace;font-size:.7em;color:var(--muted);flex-shrink:0;}
 .sol-result-tag{font-family:'DM Mono',monospace;font-size:.66em;padding:3px 10px;border-radius:100px;flex-shrink:0;}
 .sol-result-tag.ok{background:var(--green-dim);color:var(--green);}
 .sol-result-tag.err{background:var(--red-dim);color:var(--red);}
-.sol-passage-preview{font-size:.82em;color:var(--ghost);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sol-chevron{font-family:'DM Mono',monospace;font-size:.8em;color:var(--muted);flex-shrink:0;transition:transform .2s;}
+.sol-passage-preview{font-size:.82em;color:var(--ghost);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.sol-chevron{font-family:'DM Mono',monospace;font-size:.8em;color:var(--muted);flex-shrink:0;transition:transform .2s;margin-left:auto;}
 .sol-chevron.open{transform:rotate(180deg);}
 .sol-body{display:none;padding:0 18px 18px;}
 .sol-body.open{display:block;}
@@ -193,11 +193,12 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   padding:14px 16px;border-radius:10px;margin-bottom:14px;font-weight:300;}
 .sol-analysis{font-size:.88em;line-height:1.75;color:var(--ghost);}
 .sol-analysis strong{color:var(--paper);}
-.sol-analysis .logic-key{color:var(--amber);font-weight:500;}
 .sol-chosen{margin-top:10px;padding:10px 14px;background:var(--red-dim);border-radius:8px;border-left:2px solid var(--red);font-size:.84em;color:var(--ghost);}
 .sol-chosen strong{color:var(--red);}
 .sol-answer{margin-top:8px;padding:10px 14px;background:var(--green-dim);border-radius:8px;border-left:2px solid var(--green);font-size:.84em;color:var(--ghost);}
 .sol-answer strong{color:var(--green);}
+.sol-hint{margin-top:8px;padding:10px 14px;background:var(--amber-dim);border-radius:8px;border-left:2px solid var(--amber);font-size:.84em;color:var(--ghost);}
+.sol-hint strong{color:var(--amber);}
 
 /* BONUS SECTION */
 .bonus-intro{background:var(--ink-mid);border:1px solid var(--line);border-left:3px solid var(--purple);
@@ -234,6 +235,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   .report-grid{grid-template-columns:1fr;}
   .app{padding:28px 16px 80px;}
   .setting-row{flex-direction:column;align-items:flex-start;gap:10px;}
+  .sol-header{flex-wrap:wrap;gap:8px;}
+  .sol-passage-preview{display:none;}
 }
 </style>
 </head>
@@ -815,7 +818,15 @@ function syncQuizLangToggle() {
 window.setLangInQuiz = function(l) {
   lang = l;
   syncQuizLangToggle();
-  if (!answered) renderQuestion();
+  if (!answered) {
+    // 언어 전환 시 선지만 교체, prevCorrectPos는 유지
+    const q = quizSet[currentIdx];
+    const raw = lang === 'en' ? q.options_en : q.options_ko;
+    currentShuffledOptions = shuffleNoConsecutive(raw, prevCorrectPos);
+    document.querySelectorAll('.option-item').forEach((item, i) => {
+      item.querySelector('.opt-text').textContent = currentShuffledOptions[i].text;
+    });
+  }
 };
 
 document.getElementById('type-filter').addEventListener('click', e => {
@@ -885,18 +896,22 @@ window.startQuiz = function(mode) {
   document.getElementById('progress-fill').style.width = '0%';
   syncQuizLangToggle();
   show('quiz-screen');
+  window.scrollTo({top:0, behavior:'smooth'});
   startTimer();
   renderQuestion();
 };
 
 function startTimer() {
   clearInterval(timerInterval);
+  const timerEl = document.getElementById('stat-time');
+  // 무제한: 카운트업, 빨간색 없음
   if (timeLimitMin === 0) {
+    timerEl.style.color = 'var(--ghost)';
     let e = 0;
     timerInterval = setInterval(() => {
       e++;
       const m = Math.floor(e/60), s = e%60;
-      document.getElementById('stat-time').innerText = `${m}:${s<10?'0'+s:s}`;
+      timerEl.innerText = `${m}:${s<10?'0'+s:s}`;
     }, 1000);
     return;
   }
@@ -904,11 +919,10 @@ function startTimer() {
   timerInterval = setInterval(() => {
     time--;
     const m = Math.floor(time/60), s = time%60;
-    const el = document.getElementById('stat-time');
-    el.innerText = `${m}:${s<10?'0'+s:s}`;
-    if (time <= 60) el.style.color = '#ff3333';
-    else if (time <= 180) el.style.color = 'var(--red)';
-    else el.style.color = '';
+    timerEl.innerText = `${m}:${s<10?'0'+s:s}`;
+    if (time <= 60)       timerEl.style.color = '#ff3333';
+    else if (time <= 180) timerEl.style.color = 'var(--red)';
+    else                  timerEl.style.color = '';
     if (time <= 0) { clearInterval(timerInterval); showReport(); }
   }, 1000);
 }
@@ -942,7 +956,7 @@ function renderQuestion() {
       </div>
       <div class="options-list">
         ${currentShuffledOptions.map((o,i)=>`
-          <div class="option-item" id="opt-${i}" data-idx="${i}">
+          <div class="option-item" id="opt-${i}" data-idx="${i}" role="button" tabindex="0" aria-label="선택지 ${i+1}: ${o.text}">
             <div class="opt-num">${i+1}</div>
             <div class="opt-text">${o.text}</div>
           </div>`).join('')}
@@ -969,6 +983,13 @@ function attachOptionListeners() {
       if (Math.abs(e.changedTouches[0].clientY - startY) > 8) return;
       e.preventDefault();
       selectOption(parseInt(item.dataset.idx));
+    });
+    item.addEventListener('keydown', e => {
+      if (answered) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectOption(parseInt(item.dataset.idx));
+      }
     });
   });
 }
@@ -1028,6 +1049,7 @@ window.nextQuestion = function() {
 function showReport() {
   clearInterval(timerInterval);
   show('report-screen');
+  window.scrollTo({top:0, behavior:'smooth'});
   const total = quizSet.length;
   document.getElementById('report-score').innerText = score;
   document.getElementById('report-total').innerText = total;
@@ -1037,7 +1059,15 @@ function showReport() {
   document.getElementById('wrong-count-label').innerText =
     wrongCount > 0 ? `틀린 ${wrongCount}문항만 다시 도전` : '오답이 없습니다 (새 세트)';
 
-  // chart
+  // 동점 편향 처리: 최다 편향이 여럿일 때 랜덤 선택
+  const maxBias = Math.max(...Object.values(biasStats));
+  const topBiasCandidates = Object.keys(biasStats).filter(k => biasStats[k] === maxBias);
+  const topBias = topBiasCandidates[Math.floor(Math.random() * topBiasCandidates.length)];
+  const totalBias = Object.values(biasStats).reduce((a,b)=>a+b,0);
+
+  // 레이더 차트 max 동적 계산
+  const chartMax = Math.max(5, Math.ceil(maxBias * 1.2));
+
   if (biasChartInstance) biasChartInstance.destroy();
   const ctx = document.getElementById('biasChart').getContext('2d');
   biasChartInstance = new Chart(ctx, {
@@ -1048,18 +1078,26 @@ function showReport() {
         backgroundColor:'rgba(232,164,48,.1)',borderColor:'rgba(232,164,48,.75)',
         pointBackgroundColor:'rgba(232,164,48,1)',pointBorderColor:'transparent',borderWidth:1.5}]
     },
-    options:{scales:{r:{beginAtZero:true,max:5,
+    options:{scales:{r:{beginAtZero:true,max:chartMax,
       grid:{color:'rgba(255,255,255,.05)'},angleLines:{color:'rgba(255,255,255,.05)'},
       ticks:{display:false},pointLabels:{color:'#8888a0',font:{size:11,family:"'DM Mono',monospace"}}
     }},plugins:{legend:{display:false}}}
   });
 
-  const topBias = Object.keys(biasStats).reduce((a,b)=>biasStats[a]>biasStats[b]?a:b);
-  const totalBias = Object.values(biasStats).reduce((a,b)=>a+b,0);
+  const biasDescriptions = {
+    "확증 편향": "지문에 없는 내용을 믿고 싶은 대로 추가하는 경향",
+    "범주 확대": "글의 범위를 무한히 확장해 과잉 일반화하는 경향",
+    "인과관계 역전": "상관관계를 인과관계로, 또는 원인과 결과를 뒤바꾸는 경향",
+    "이분법적 사고": "복잡한 문제를 극단적 양자택일로 단순화하는 경향",
+    "껍데기 함정": "표면적 형식이나 수단에 집중해 본질을 놓치는 경향"
+  };
+
   document.getElementById('analysis-text').innerHTML = totalBias===0
-    ? `<p>모든 편향 함정을 완벽히 피했습니다. <strong>탁월한 논리적 사고력</strong>입니다.</p>`
+    ? `<p>모든 편향 함정을 완벽히 피했습니다. <strong>탁월한 논리적 사고력</strong>입니다.</p>
+       <p>보충 문제로 현재 실력을 유지·강화하세요.</p>`
     : `<p>총 <strong>${total}문항</strong> 중 <strong>${score}문항 정답</strong>.</p>
-       <p>가장 자주 빠진 편향은 <strong>${topBias}</strong>(${biasStats[topBias]}회)입니다. 지문 속 시그널 명사와 인과 관계를 기계적으로 분리하는 연습을 추천합니다.</p>`;
+       <p>핵심 약점 : <strong style="color:var(--amber)">${topBias}</strong> (${biasStats[topBias]}회)<br>
+       <span style="font-size:.85em">${biasDescriptions[topBias]}</span></p>`;
 
   const maxVal = Math.max(...Object.values(biasStats),1);
   document.getElementById('bias-breakdown').innerHTML = Object.entries(biasStats).map(([name,val])=>`
@@ -1080,29 +1118,34 @@ function renderSolutions() {
   const container = document.getElementById('sol-list');
   container.innerHTML = quizSet.map((q, i) => {
     const isCorrect = !q._wrong;
-    const correctOpt = (lang==='en' ? q.options_en : q.options_ko).find(o=>o.correct);
+    const optArr = lang==='en' ? q.options_en : q.options_ko;
+    const correctOpt = optArr.find(o=>o.correct);
     const correctText = correctOpt ? correctOpt.text : '—';
-    const preview = q.passage.replace('__BLANK__','[빈칸]').slice(0,60) + '…';
+    const preview = q.passage.replace('__BLANK__','[빈칸]').slice(0,55) + '…';
+    const autoOpen = !isCorrect; // 오답은 자동 펼침
 
     const chosenHTML = q._chosen
-      ? `<div class="sol-chosen"><strong>선택한 답 :</strong> ${q._chosen}</div>` : '';
-    const answerHTML = `<div class="sol-answer"><strong>정답 :</strong> ${correctText}</div>`;
+      ? `<div class="sol-chosen"><strong>내가 선택한 답 :</strong> ${q._chosen}</div>` : '';
+    const answerHTML = `<div class="sol-answer"><strong>✓ 정답 :</strong> ${correctText}</div>`;
+    const hintHTML = isCorrect
+      ? `<div class="sol-hint"><strong>💡 핵심 논리 :</strong> ${q.solution}</div>` : '';
 
     return `
     <div class="sol-card ${isCorrect ? 'sol-correct' : 'sol-wrong'}">
       <div class="sol-header" onclick="toggleSol(${i})">
         <span class="sol-qnum">Q${i+1}</span>
-        <span class="sol-result-tag ${isCorrect?'ok':'err'}">${isCorrect?'정답':'오답'}</span>
-        <span class="type-badge" style="font-size:.62em;padding:3px 10px;">${q.type}</span>
+        <span class="sol-result-tag ${isCorrect?'ok':'err'}">${isCorrect?'✓ 정답':'✗ 오답'}</span>
+        <span class="type-badge" style="font-size:.62em;padding:3px 10px;flex-shrink:0;">${q.type}</span>
         <span class="sol-passage-preview">${preview}</span>
-        <span class="sol-chevron" id="chev-${i}">▾</span>
+        <span class="sol-chevron ${autoOpen?'open':''}" id="chev-${i}">▾</span>
       </div>
-      <div class="sol-body" id="sol-body-${i}">
-        <div class="sol-passage-full">${q.passage.replace('__BLANK__','<span class="blank-slot">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}</div>
+      <div class="sol-body ${autoOpen?'open':''}" id="sol-body-${i}" style="${autoOpen?'display:block':'display:none'}">
+        <div class="sol-passage-full">${q.passage.replace('__BLANK__','<span class="blank-slot"> _________________ </span>')}</div>
         <div class="sol-analysis">
-          <strong>📌 핵심 논리 해설</strong><br>${q.solution}
+          <strong>📌 핵심 논리 해설</strong><br><br>${q.solution}
           ${chosenHTML}
           ${!isCorrect ? answerHTML : ''}
+          ${hintHTML}
         </div>
       </div>
     </div>`;
@@ -1287,10 +1330,14 @@ function finishBonus() {
     : pct >= .5 ? "절반 이상 맞혔습니다. 동일 유형을 반복 훈련하세요."
     : "아직 해당 편향에 취약합니다. 해설을 꼼꼼히 검토하고 다시 도전하세요.";
 
-  document.getElementById('bonus-result-wrap').style.display = 'flex';
+  const resultEl = document.getElementById('bonus-result-wrap');
+  resultEl.style.display = 'flex';
   document.getElementById('bonus-score-num').innerText = `${bonusScore}/${bonusSet.length}`;
   document.getElementById('bonus-score-label-text').innerText = msg;
-};
+
+  // 결과로 자동 스크롤
+  setTimeout(() => resultEl.scrollIntoView({ behavior:'smooth', block:'center' }), 100);
+}
 
 /* ═══════════════════════════════════════════
    RETRY MODAL
