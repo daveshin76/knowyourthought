@@ -91,6 +91,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .stat-label{font-family:'DM Mono',monospace;font-size:.6em;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px;}
 .stat-value{font-family:'DM Mono',monospace;font-size:1.38em;font-weight:500;color:var(--paper);}
 .stat-card.timer .stat-value{color:var(--red);}
+.stat-card.timer.unlim .stat-value{color:var(--ghost);}
 .stat-card.correct .stat-value{color:var(--green);}
 .stat-card.bias-card .stat-value{color:var(--amber);}
 .quiz-topbar{display:flex;align-items:center;justify-content:flex-end;margin-bottom:14px;}
@@ -172,6 +173,15 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .section-hdr{margin:44px 0 20px;display:flex;align-items:flex-end;gap:14px;}
 .section-hdr-title{font-family:'DM Serif Display',serif;font-size:1.5em;color:var(--cream);}
 .section-hdr-sub{font-size:.82em;color:var(--muted);margin-bottom:3px;}
+.expand-all-btn{font-family:'DM Mono',monospace;font-size:.7em;padding:5px 13px;border-radius:8px;
+  border:1px solid var(--line);background:var(--ink-soft);color:var(--muted);cursor:pointer;
+  transition:border-color .18s,color .18s;white-space:nowrap;margin-left:auto;align-self:center;}
+.expand-all-btn:hover{border-color:var(--ghost);color:var(--paper);}
+.btn-bonus-retry{display:block;width:100%;padding:14px 28px;margin-top:14px;border:1px solid var(--purple);
+  border-radius:var(--r);background:var(--purple-dim);color:var(--purple);
+  font-family:'Noto Sans KR',sans-serif;font-weight:600;font-size:.95em;cursor:pointer;
+  transition:background .18s,box-shadow .2s;}
+.btn-bonus-retry:hover{background:rgba(160,110,232,.18);box-shadow:0 0 20px rgba(160,110,232,.2);}
 
 /* SOLUTION CARDS */
 .sol-list{display:grid;gap:14px;}
@@ -321,7 +331,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   <div class="wordmark">진단 완료 · 결과 리포트</div>
   <div class="report-hero">
     <div id="report-score" class="score-big">—</div>
-    <div class="score-label">/ <span id="report-total">20</span> correct</div>
+    <div class="score-label">/ <span id="report-total">20</span> correct &nbsp;·&nbsp; <span id="report-pct">—</span></div>
     <div id="report-grade" style="margin-top:14px;font-size:.9em;color:var(--ghost);"></div>
   </div>
   <div class="report-grid">
@@ -337,8 +347,9 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   <div class="section-hdr">
     <div>
       <div class="section-hdr-title">📋 문항별 해설</div>
-      <div class="section-hdr-sub">각 문항의 핵심 논리와 오답 함정 분석 · 클릭해서 펼치기</div>
+      <div class="section-hdr-sub">핵심 논리와 오답 함정 분석 · 오답은 자동 펼침</div>
     </div>
+    <button class="expand-all-btn" id="expand-all-btn" onclick="toggleExpandAll()">모두 펼치기</button>
   </div>
   <div class="sol-list" id="sol-list"></div>
 
@@ -355,9 +366,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
     <div class="bonus-score-num" id="bonus-score-num">—</div>
     <div class="bonus-score-label"><strong>보충 문제 결과</strong><br><span id="bonus-score-label-text"></span></div>
   </div>
+  <button class="btn-bonus-retry" id="bonus-retry-btn" style="display:none;" onclick="retryBonus()">🔄 보충 문제 다시 풀기</button>
 
   <div style="margin-top:40px;">
     <button class="btn btn-primary" onclick="openRetryModal()">다시 풀기</button>
+    <button class="btn btn-ghost" onclick="exportReport()" style="margin-top:10px;">📄 리포트 HTML로 저장</button>
     <button class="btn btn-ghost" onclick="location.reload()">처음으로 돌아가기</button>
   </div>
 </div>
@@ -806,6 +819,7 @@ let prevCorrectPos = null; // 이전 문항의 정답 위치
 ═══════════════════════════════════════════ */
 function setLang(l) {
   lang = l;
+  document.documentElement.lang = l === 'ko' ? 'ko' : 'en';
   ['ko','en'].forEach(x => document.getElementById('lang-'+x).classList.toggle('active', x===l));
   syncQuizLangToggle();
 }
@@ -817,14 +831,29 @@ function syncQuizLangToggle() {
 }
 window.setLangInQuiz = function(l) {
   lang = l;
+  document.documentElement.lang = l === 'ko' ? 'ko' : 'en';
   syncQuizLangToggle();
   if (!answered) {
-    // 언어 전환 시 선지만 교체, prevCorrectPos는 유지
+    // 답 안 한 상태 — 선지 텍스트만 교체, prevCorrectPos 유지
     const q = quizSet[currentIdx];
     const raw = lang === 'en' ? q.options_en : q.options_ko;
     currentShuffledOptions = shuffleNoConsecutive(raw, prevCorrectPos);
     document.querySelectorAll('.option-item').forEach((item, i) => {
-      item.querySelector('.opt-text').textContent = currentShuffledOptions[i].text;
+      const textEl = item.querySelector('.opt-text');
+      if (textEl && currentShuffledOptions[i]) textEl.textContent = currentShuffledOptions[i].text;
+    });
+  } else {
+    // 이미 답한 상태 — 전체 재렌더하되 선지 잠금 상태 유지
+    const q = quizSet[currentIdx];
+    const raw = lang === 'en' ? q.options_en : q.options_ko;
+    // 기존 셔플 순서 유지하며 텍스트만 교체 (정답 위치 보존)
+    document.querySelectorAll('.option-item').forEach((item, i) => {
+      if (!currentShuffledOptions[i]) return;
+      const srcOpt = currentShuffledOptions[i];
+      // 동일 correct 여부로 대응 텍스트 찾기
+      const matched = raw.find(o => !!o.correct === !!srcOpt.correct && o.trap === srcOpt.trap);
+      const textEl = item.querySelector('.opt-text');
+      if (textEl && matched) textEl.textContent = matched.text;
     });
   }
 };
@@ -842,12 +871,14 @@ document.getElementById('type-filter').addEventListener('click', e => {
 });
 
 window.stepCount = function(d) {
-  questionCount = Math.min(30, Math.max(10, questionCount + d));
+  questionCount = Math.min(30, Math.max(5, questionCount + d * 5));
   document.getElementById('count-val').innerText = questionCount + '문항';
 };
 window.stepTime = function(d) {
   timeLimitMin = Math.min(60, Math.max(0, timeLimitMin + d));
   document.getElementById('time-val').innerText = timeLimitMin === 0 ? '무제한' : timeLimitMin + '분';
+  const tCard = document.querySelector('.stat-card.timer');
+  if(tCard) tCard.classList.toggle('unlim', timeLimitMin === 0);
 };
 
 function show(id) {
@@ -882,21 +913,37 @@ window.startQuiz = function(mode) {
     while (set.length < target) set.push(...shuffle(base));
     quizSet = set.slice(0, target).map(q=>({...q,_wrong:false}));
   } else if (mode === 'same') {
-    quizSet = quizSet.map(q=>({...q,_wrong:false}));
+    if (quizSet.length === 0) {
+      let set = [];
+      while (set.length < target) set.push(...shuffle(pool));
+      quizSet = set.slice(0, target).map(q=>({...q,_wrong:false}));
+    } else {
+      quizSet = quizSet.map(q=>({...q,_wrong:false}));
+    }
   } else {
     let set = [];
     while (set.length < target) set.push(...shuffle(pool));
     quizSet = set.slice(0, target).map(q=>({...q,_wrong:false}));
   }
 
+  const tCard = document.querySelector('.stat-card.timer');
+  if (tCard) tCard.classList.toggle('unlim', timeLimitMin === 0);
   const tStr = timeLimitMin === 0 ? '∞' : `${timeLimitMin}:00`;
   document.getElementById('stat-score').innerText = '0';
   document.getElementById('stat-bias').innerText = '0';
   document.getElementById('stat-time').innerText = tStr;
   document.getElementById('progress-fill').style.width = '0%';
+  // 보충 문제 결과 초기화
+  const bRes = document.getElementById('bonus-result-wrap');
+  if (bRes) bRes.style.display = 'none';
+  const bBtn = document.getElementById('bonus-retry-btn');
+  if (bBtn) bBtn.style.display = 'none';
+  allExpanded = false;
   syncQuizLangToggle();
   show('quiz-screen');
   window.scrollTo({top:0, behavior:'smooth'});
+  // 퀴즈 진행 중 실수로 나가기 방지
+  window.onbeforeunload = () => '진단이 진행 중입니다. 페이지를 나가면 결과가 사라집니다.';
   startTimer();
   renderQuestion();
 };
@@ -1011,7 +1058,6 @@ function selectOption(idx) {
 
   items.forEach(item => { item.classList.add('disabled'); item.style.pointerEvents='none'; });
   feedback.style.display = 'block';
-  btnNext.style.display = 'block';
 
   // 정답 위치 기록
   prevCorrectPos = currentShuffledOptions.findIndex(o => o.correct);
@@ -1021,7 +1067,7 @@ function selectOption(idx) {
     document.getElementById('stat-score').innerText = score;
     items[idx].classList.add('correct');
     feedback.className = 'feedback-area correct-fb';
-    feedback.innerHTML = `<span class="fb-tag ok">CORRECT</span> 지문의 핵심 논리를 정확히 파악했습니다.`;
+    feedback.innerHTML = `<span class="fb-tag ok">CORRECT</span> 지문의 핵심 논리를 정확히 파악했습니다. 해설은 리포트에서 확인하세요.`;
   } else {
     quizSet[currentIdx]._wrong = true;
     quizSet[currentIdx]._chosen = opt.text;
@@ -1031,10 +1077,18 @@ function selectOption(idx) {
     currentShuffledOptions.forEach((o,i) => { if (o.correct) items[i].classList.add('correct'); });
     const ansReveal = q.type === '빈칸'
       ? `<div class="answer-reveal">정답 : <strong>${lang==='en' ? q.blank_answer_en : q.blank_answer_ko}</strong></div>` : '';
+    const correctText = currentShuffledOptions.find(o=>o.correct)?.text || '';
     feedback.className = 'feedback-area wrong-fb';
     feedback.innerHTML = `<span class="fb-tag err">WRONG</span> 발견된 편향 : <span class="bias-tag">${opt.trap}</span>
-      <br><span style="font-size:.85em;color:var(--ghost);display:block;margin-top:8px">지문 근거보다 주관 판단이나 논리적 비약에 치우쳤습니다.</span>${ansReveal}`;
+      <br><span style="font-size:.85em;color:var(--ghost);display:block;margin-top:8px">지문 근거보다 주관 판단이나 논리적 비약에 치우쳤습니다.</span>
+      ${ansReveal}
+      <div style="margin-top:8px;font-size:.84em;color:var(--ghost);padding:8px 12px;background:var(--green-dim);border-radius:8px;border-left:2px solid var(--green);">
+        <strong style="color:var(--green);">정답 :</strong> ${correctText}
+      </div>`;
   }
+
+  // 버튼은 0.7초 후 등장 — 피드백 먼저 읽도록 유도
+  setTimeout(() => { btnNext.style.display = 'block'; }, 700);
 }
 
 window.nextQuestion = function() {
@@ -1048,11 +1102,15 @@ window.nextQuestion = function() {
 ═══════════════════════════════════════════ */
 function showReport() {
   clearInterval(timerInterval);
+  // 퀴즈 완료 — 뒤로가기 경고 해제
+  window.onbeforeunload = null;
   show('report-screen');
   window.scrollTo({top:0, behavior:'smooth'});
   const total = quizSet.length;
+  const pct = Math.round((score / total) * 100);
   document.getElementById('report-score').innerText = score;
   document.getElementById('report-total').innerText = total;
+  document.getElementById('report-pct').innerText = pct + '%';
   document.getElementById('report-grade').innerText = gradeLabel(score, total);
 
   const wrongCount = quizSet.filter(q=>q._wrong).length;
@@ -1151,6 +1209,26 @@ function renderSolutions() {
     </div>`;
   }).join('');
 }
+
+let allExpanded = false;
+window.toggleExpandAll = function() {
+  allExpanded = !allExpanded;
+  document.querySelectorAll('.sol-body').forEach((body, i) => {
+    body.style.display = allExpanded ? 'block' : 'none';
+    body.classList.toggle('open', allExpanded);
+  });
+  document.querySelectorAll('.sol-chevron').forEach(c => c.classList.toggle('open', allExpanded));
+  document.getElementById('expand-all-btn').innerText = allExpanded ? '모두 접기' : '모두 펼치기';
+};
+
+window.retryBonus = function() {
+  document.getElementById('bonus-result-wrap').style.display = 'none';
+  document.getElementById('bonus-retry-btn').style.display = 'none';
+  bonusIdx = 0; bonusScore = 0; bonusAnswered = false;
+  prevCorrectPos = null;
+  bonusSet = shuffle(bonusSet); // 순서 섞기
+  renderBonusQuestion();
+};
 
 window.toggleSol = function(i) {
   const body = document.getElementById('sol-body-'+i);
@@ -1334,10 +1412,176 @@ function finishBonus() {
   resultEl.style.display = 'flex';
   document.getElementById('bonus-score-num').innerText = `${bonusScore}/${bonusSet.length}`;
   document.getElementById('bonus-score-label-text').innerText = msg;
+  document.getElementById('bonus-retry-btn').style.display = 'block';
 
   // 결과로 자동 스크롤
   setTimeout(() => resultEl.scrollIntoView({ behavior:'smooth', block:'center' }), 100);
 }
+
+/* ═══════════════════════════════════════════
+   EXPORT REPORT
+═══════════════════════════════════════════ */
+window.exportReport = function() {
+  const total = quizSet.length;
+  const pct   = Math.round((score / total) * 100);
+  const now   = new Date();
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const biasDescriptions = {
+    "확증 편향":"지문에 없는 내용을 믿고 싶은 대로 추가하는 경향",
+    "범주 확대":"글의 범위를 무한히 확장해 과잉 일반화하는 경향",
+    "인과관계 역전":"상관관계를 인과관계로, 또는 원인과 결과를 뒤바꾸는 경향",
+    "이분법적 사고":"복잡한 문제를 극단적 양자택일로 단순화하는 경향",
+    "껍데기 함정":"표면적 형식이나 수단에 집중해 본질을 놓치는 경향"
+  };
+
+  const maxBiasVal = Math.max(...Object.values(biasStats));
+  const topBias = Object.keys(biasStats).filter(k=>biasStats[k]===maxBiasVal)
+                        .sort(()=>Math.random()-.5)[0];
+  const totalBias = Object.values(biasStats).reduce((a,b)=>a+b,0);
+  const maxVal = Math.max(...Object.values(biasStats),1);
+
+  const gradeEmoji = pct>=90?'🏆':pct>=70?'✅':pct>=50?'📊':'🔄';
+
+  // 문항별 해설 rows
+  const solRows = quizSet.map((q,i) => {
+    const isCorrect = !q._wrong;
+    const optArr = lang==='en' ? q.options_en : q.options_ko;
+    const correctText = optArr.find(o=>o.correct)?.text || '—';
+    const passage = q.passage.replace('__BLANK__','[ _________________ ]');
+    return `
+    <div class="sol-card ${isCorrect?'sol-correct':'sol-wrong'}">
+      <div class="sol-meta">
+        <span class="qnum">Q${i+1}</span>
+        <span class="rtag ${isCorrect?'ok':'err'}">${isCorrect?'✓ 정답':'✗ 오답'}</span>
+        <span class="type-lbl">${q.type}</span>
+      </div>
+      <p class="passage">${passage}</p>
+      <div class="sol-body">
+        <div class="analysis"><strong>📌 핵심 논리 해설</strong><br><br>${q.solution}</div>
+        ${q._chosen ? `<div class="chosen"><strong>내가 선택한 답:</strong> ${q._chosen}</div>` : ''}
+        ${!isCorrect ? `<div class="answer"><strong>✓ 정답:</strong> ${correctText}</div>` : ''}
+        ${isCorrect ? `<div class="hint"><strong>💡 핵심 논리:</strong> ${q.solution}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // 편향 바 rows
+  const biasRows = Object.entries(biasStats).map(([name,val]) => `
+    <div class="bias-row">
+      <span class="bname">${name}</span>
+      <div class="btrack"><div class="bfill" style="width:${(val/maxVal)*100}%"></div></div>
+      <span class="bcount">${val}회</span>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="${lang==='en'?'en':'ko'}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Logic Master 진단 리포트 — ${dateStr}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans KR','Segoe UI',sans-serif;background:#f4f2ee;color:#1a1a22;padding:40px 24px;line-height:1.6;}
+  .page{max-width:800px;margin:0 auto;}
+  /* HEADER */
+  .report-header{background:#0e0e12;color:#f2f0ec;border-radius:16px;padding:32px 36px;margin-bottom:28px;}
+  .eyebrow{font-family:'Courier New',monospace;font-size:.7em;letter-spacing:.2em;color:#e8a430;text-transform:uppercase;margin-bottom:12px;}
+  .score-row{display:flex;align-items:flex-end;gap:16px;margin-bottom:8px;}
+  .score-num{font-size:4em;font-weight:700;color:#e8a430;line-height:1;}
+  .score-denom{font-size:1.4em;color:#8888a0;margin-bottom:8px;}
+  .pct-badge{background:rgba(232,164,48,.15);border:1px solid rgba(232,164,48,.4);border-radius:8px;padding:4px 12px;font-family:'Courier New',monospace;font-size:.9em;color:#e8a430;}
+  .grade{font-size:1em;color:#8888a0;margin-top:8px;}
+  .meta{font-family:'Courier New',monospace;font-size:.72em;color:#58586e;margin-top:16px;padding-top:16px;border-top:1px solid #2c2c3a;}
+  /* SECTION */
+  .section{background:#fff;border-radius:14px;padding:24px 28px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+  .section-title{font-size:1.1em;font-weight:700;color:#0e0e12;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #f4f2ee;}
+  /* BIAS */
+  .bias-summary{font-size:.9em;color:#58586e;margin-bottom:16px;line-height:1.7;}
+  .bias-summary strong{color:#0e0e12;}
+  .bias-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .bname{font-family:'Courier New',monospace;font-size:.75em;color:#58586e;min-width:90px;flex-shrink:0;}
+  .btrack{flex:1;height:8px;background:#f4f2ee;border-radius:10px;overflow:hidden;}
+  .bfill{height:100%;background:#e8a430;border-radius:10px;}
+  .bcount{font-family:'Courier New',monospace;font-size:.75em;color:#8888a0;min-width:28px;text-align:right;}
+  /* SOL CARDS */
+  .sol-card{border-radius:12px;margin-bottom:14px;overflow:hidden;border:1px solid #e8e6e2;}
+  .sol-card.sol-correct{border-left:4px solid #3daa72;}
+  .sol-card.sol-wrong{border-left:4px solid #e05252;}
+  .sol-meta{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#faf8f4;border-bottom:1px solid #e8e6e2;}
+  .qnum{font-family:'Courier New',monospace;font-size:.75em;color:#8888a0;}
+  .rtag{font-family:'Courier New',monospace;font-size:.7em;padding:3px 10px;border-radius:100px;}
+  .rtag.ok{background:rgba(61,170,114,.12);color:#3daa72;}
+  .rtag.err{background:rgba(224,82,82,.12);color:#e05252;}
+  .type-lbl{font-family:'Courier New',monospace;font-size:.7em;background:rgba(232,164,48,.12);color:#c48820;padding:3px 10px;border-radius:100px;}
+  .passage{font-size:.88em;line-height:1.85;color:#2a2a36;padding:14px 16px;background:#f9f7f3;border-bottom:1px solid #e8e6e2;}
+  .sol-body{padding:14px 16px;font-size:.86em;display:grid;gap:8px;}
+  .analysis{color:#58586e;line-height:1.75;}
+  .analysis strong{color:#0e0e12;}
+  .chosen{padding:8px 12px;background:rgba(224,82,82,.08);border-radius:8px;border-left:3px solid #e05252;color:#666;}
+  .chosen strong{color:#e05252;}
+  .answer{padding:8px 12px;background:rgba(61,170,114,.08);border-radius:8px;border-left:3px solid #3daa72;color:#666;}
+  .answer strong{color:#3daa72;}
+  .hint{padding:8px 12px;background:rgba(232,164,48,.08);border-radius:8px;border-left:3px solid #e8a430;color:#666;}
+  .hint strong{color:#c48820;}
+  /* FOOTER */
+  .footer{text-align:center;margin-top:32px;font-family:'Courier New',monospace;font-size:.72em;color:#aaa;}
+  @media print{
+    body{background:#fff;padding:20px;}
+    .section{box-shadow:none;border:1px solid #ddd;}
+    .report-header{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .bfill{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .rtag,.type-lbl{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="report-header">
+    <div class="eyebrow">Protocol 2.1 · Logic Master v5.0 · 진단 리포트</div>
+    <div class="score-row">
+      <div class="score-num">${score}</div>
+      <div class="score-denom">/ ${total}</div>
+      <div class="pct-badge">${pct}%</div>
+    </div>
+    <div class="grade">${gradeEmoji} ${gradeLabel(score,total)}</div>
+    <div class="meta">진단 일시 : ${dateStr} ${timeStr} &nbsp;·&nbsp; 문항 수 : ${total} &nbsp;·&nbsp; 정답 : ${score} &nbsp;·&nbsp; 오답 : ${total-score}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📊 사고 편향 분석</div>
+    <div class="bias-summary">
+      ${totalBias===0
+        ? '모든 편향 함정을 완벽히 피했습니다. <strong>탁월한 논리적 사고력</strong>입니다.'
+        : `핵심 약점 편향 : <strong>${topBias}</strong> (${biasStats[topBias]}회) — ${biasDescriptions[topBias]}`}
+    </div>
+    ${biasRows}
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 문항별 해설 (${total}문항)</div>
+    ${solRows}
+  </div>
+
+  <div class="footer">
+    Logic Master v5.0 · Protocol 2.1 Multi-Layered Logic Analyzer · ${dateStr}
+  </div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `LogicMaster_리포트_${dateStr}_${score}of${total}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 /* ═══════════════════════════════════════════
    RETRY MODAL
